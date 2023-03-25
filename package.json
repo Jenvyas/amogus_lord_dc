@@ -14,8 +14,11 @@
     "@types/node": "^18.13.0"
   },
   "dependencies": {
+    "@types/mongoose": "^5.11.97",
     "discord.js": "^14.7.1",
     "dotenv": "^16.0.3",
-    "got": "^12.5.3"
+    "got": "^12.5.3",
+    "mongodb": "^5.1.0",
+    "mongoose": "^7.0.3"
   }
 }

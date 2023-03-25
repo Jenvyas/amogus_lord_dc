@@ -1,5 +1,9 @@
 import { ChannelType, SlashCommandBuilder, TextChannel, 
     User, Message, Collection, ChatInputCommandInteraction } from 'discord.js';
+import mongoose from 'mongoose';
+import ChannelModel from '../models/channel.model';
+import MessageModel from '../models/message.model';
+import ServerModel from '../models/server.model';
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -20,6 +24,38 @@ module.exports = {
         await interaction.deferReply({ ephemeral: true });
 
         const channel = interaction.options.getChannel('initialize_channel') as TextChannel;
+        if(!channel.isTextBased()){
+            interaction.editReply('Specified channel is not text based.');
+            return;
+        }
+        
+        try {
+            const db_server = new ServerModel({
+                id: interaction.guildId,
+                name: interaction.guild.name,
+            })
+            await db_server.save();
+        } catch (error) {
+            if (!(error.code === 11000)) {
+                interaction.editReply('There was a problem with the database when trying to store server data.');
+                return;
+            }
+        }
+
+        try {
+            const db_channel = new ChannelModel({
+                id: channel.id,
+                name: channel.name,
+                server_id: interaction.guildId,
+                intent: 'streak', 
+            });
+            await db_channel.save();
+        } catch (error) {
+            if (!(error.code === 11000)) {
+                interaction.editReply('There was a problem with the database when trying to store channel data.');
+                return;
+            }
+        }
 
         let initial_message: Message;
         try {
@@ -32,8 +68,25 @@ module.exports = {
         let amogus_messages: Array<Message> = [];
         try {
             amogus_messages = await getAmogusMessages(channel, initial_message);
+            for (const message of amogus_messages) {
+                const db_message = new MessageModel({
+                    id: message.id,
+                    author_id: message.author.id,
+                    channel_id: message.channelId,
+                    timestamp: message.createdTimestamp,
+                    content: message.content,
+                });
+                await db_message.save();
+            }
         } catch (error) {
-            interaction.editReply("There was a problem retrieving the messages.");
+            if (error instanceof mongoose.Error.ValidationError) {
+                interaction.editReply("Failed to validate message(s)");
+                console.log(error);
+            } else if (error.code === 11000) {
+                interaction.editReply("Part of or all of the messages have already been initialized.");
+            } else {
+                interaction.editReply("There was a problem retrieving the messages.");
+            }
             return;
         }
         
@@ -52,7 +105,7 @@ module.exports = {
         let reply = "";
         scores.forEach((score, user)=>reply+=`${user.username}: ${score}\n`);
         */
-        interaction.editReply("ok");
+        interaction.editReply("Channel has been initialized");
     }
 };
 
