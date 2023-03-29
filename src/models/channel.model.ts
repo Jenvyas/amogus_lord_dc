@@ -1,7 +1,7 @@
 import { Snowflake } from "discord.js";
 import { Schema, model } from 'mongoose';
 
-interface StoredChannel {
+export interface StoredChannel {
     id: Snowflake;
     name: String;
     server_id: Snowflake;

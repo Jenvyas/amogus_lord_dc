@@ -1,7 +1,7 @@
-import { Snowflake, Message } from 'discord.js';
+import { Snowflake } from 'discord.js';
 import { Schema, model } from 'mongoose';
 
-interface StoredMessage {
+export interface StoredMessage {
     id: Snowflake;
     author_id: Snowflake;
     channel_id: Snowflake;

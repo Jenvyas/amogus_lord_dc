@@ -2,7 +2,7 @@ import * as dotenv from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Client, Collection, Events, GatewayIntentBits } from 'discord.js';
-import connectDB from './database';
+import connectDB from './utils/database-connect';
 
 dotenv.config();
 const token = process.env.TOKEN;

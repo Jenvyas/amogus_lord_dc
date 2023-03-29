@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import ChannelModel from '../models/channel.model';
 import MessageModel from '../models/message.model';
 import ServerModel from '../models/server.model';
+import UserModel from '../models/user.model';
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -35,14 +36,7 @@ module.exports = {
                 name: interaction.guild.name,
             })
             await db_server.save();
-        } catch (error) {
-            if (!(error.code === 11000)) {
-                interaction.editReply('There was a problem with the database when trying to store server data.');
-                return;
-            }
-        }
 
-        try {
             const db_channel = new ChannelModel({
                 id: channel.id,
                 name: channel.name,
@@ -52,7 +46,7 @@ module.exports = {
             await db_channel.save();
         } catch (error) {
             if (!(error.code === 11000)) {
-                interaction.editReply('There was a problem with the database when trying to store channel data.');
+                interaction.editReply('There was a database problem when trying to store server data.');
                 return;
             }
         }
@@ -66,9 +60,35 @@ module.exports = {
         }
 
         let amogus_messages: Array<Message> = [];
+        let duplicate_messages = false;
         try {
             amogus_messages = await getAmogusMessages(channel, initial_message);
+            let users: Set<string>= new Set<string>();
+
             for (const message of amogus_messages) {
+                if ((!users.has(message.author.id))) {
+                    users.add(message.author.id);
+
+                    const db_user = new UserModel({
+                        id:message.author.id,
+                        name:message.author.username,
+                        profile_picture_url:message.author.avatarURL() || message.author.defaultAvatarURL,
+                    })
+                    try {
+                        await db_user.save();
+                    } catch(error){
+                        if (error.code === 11000) {
+                            // this error code means that there already exists an entry for this userID
+                            // in the database, which is fine and doesn't cause any issues.
+                        } else {
+                            interaction.editReply('There was a problem while saving users to database.');
+                            console.log(error);
+                            console.log(db_user);
+                            return;
+                        }
+                    }
+                }
+
                 const db_message = new MessageModel({
                     id: message.id,
                     author_id: message.author.id,
@@ -76,55 +96,46 @@ module.exports = {
                     timestamp: message.createdTimestamp,
                     content: message.content,
                 });
-                await db_message.save();
+                try {
+                    await db_message.save();
+                } catch (error) {
+                    if (error instanceof mongoose.Error.ValidationError) {
+                        interaction.editReply("Failed to validate message(s)");
+                        console.log(error);
+                        return;
+                    } else if (error.code === 11000) {
+                        duplicate_messages = true;
+                    } else {
+                        interaction.editReply("There was a problem saving the messages to the database.");
+                        return;
+                    }
+                }
+                
             }
         } catch (error) {
-            if (error instanceof mongoose.Error.ValidationError) {
-                interaction.editReply("Failed to validate message(s)");
-                console.log(error);
-            } else if (error.code === 11000) {
-                interaction.editReply("Part of or all of the messages have already been initialized.");
-            } else {
                 interaction.editReply("There was a problem retrieving the messages.");
-            }
-            return;
+                console.log(error);
+                return;
         }
         
-        /* was used for generating player scores
-        let scores = new Map<User, number>();
-        
-        amogus_messages.forEach(message=>{
-            if (scores.has(message.author)) {
-                let score = scores.get(message.author);
-                scores.set(message.author, score + 1);
-            } else {
-                scores.set(message.author, 1);
-            }
-        });
-        
-        let reply = "";
-        scores.forEach((score, user)=>reply+=`${user.username}: ${score}\n`);
-        */
-        interaction.editReply("Channel has been initialized");
+        interaction.editReply(`Channel has been initialized. ${duplicate_messages && 'One or more messages have already been initialized before.'}`);
     }
 };
 
-async function getAmogusMessages(channel: TextChannel, initial_message: Message): Promise<Array<Message>>{
+async function getAmogusMessages(channel: TextChannel, initial_message: Message): Promise<Array<Message>> {
     let amogus_messages: Array<Message> = [];
-        let messages_response: Collection<string,Message>;
-        do {
-            messages_response= await channel.messages.fetch({
-                limit: 100, after: initial_message.id});
+    let messages_response: Collection<string, Message>;
+    do {
+        messages_response = await channel.messages.fetch({
+            limit: 100, after: initial_message.id
+        });
 
-            messages_response.forEach(message=>{
-                if (message.content.includes('ඞ'))
-                    amogus_messages.push(message); // filters the message response for amogus messages
-            });
+        messages_response.forEach(message => {
+            if (message.content.includes('ඞ'))
+                amogus_messages.push(message); // filters the message response for amogus messages
+        });
 
-            initial_message = messages_response.first(1).pop();
-        } while(messages_response.size>=100)
+        initial_message = messages_response.first(1).pop();
+    } while (messages_response.size >= 1)
     return amogus_messages;
 }
-
-
-
