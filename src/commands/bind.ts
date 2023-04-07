@@ -1,10 +1,11 @@
 import { SlashCommandBuilder, ChatInputCommandInteraction, AttachmentBuilder } from 'discord.js';
 import fs from 'fs';
 import { getMapOfUserInfo, getMapOfUserValidMessageCount, getStreakChannel, getValidStreakMessages } from '../DataRetrieval/data-filtering.js';
-import { create_message_leaderboard } from '../DataVisualization/streak-charts.js';
+import { create_leaderboard_chart, create_leaderboard_embed } from '../Leaderboard/leaderboard.js';
 import { EventEmitter } from 'events';
 import WebhookModel from '../models/webhook.model.js';
 import ChannelModel from '../models/channel.model.js';
+import { channel } from 'diagnostics_channel';
 
 interface field {
     name: string,
@@ -41,8 +42,6 @@ module.exports = {
 
         let user_id_to_user = await getMapOfUserInfo([...user_scores.keys()]);
 
-        let leaderboard_canvas = await create_message_leaderboard(user_scores, user_id_to_user);
-
         try {
             fs.mkdirSync('./images');
         } catch (error) {
@@ -59,57 +58,20 @@ module.exports = {
                 return;
         }
 
-        const out = fs.createWriteStream('./images/' + streak_channel.id + '/leaderboard.png');
+        const leaderboard_embed = await create_leaderboard_embed(user_scores, user_id_to_user, streak_channel.id);
 
-        const image_event = new EventEmitter();
+        const message = await webhook.send({ embeds: [leaderboard_embed.embed_object], files: [leaderboard_embed.thumbnail_file, leaderboard_embed.leaderboard_chart] });
+        await interaction.editReply('Done!');
+        await interaction.deleteReply();
 
-        out.on('open', () => {
-            const stream = leaderboard_canvas.createPNGStream();
-            stream.on('data', chunk => { out.write(chunk); });
-            stream.on('end', () => { image_event.emit('ready'); });
+        let webhook_db = new WebhookModel({
+            id: webhook.id,
+            token: webhook.token,
+            server_id: interaction.guildId,
+            leaderboard_id: message.id,
         });
 
-        const thumbnail_file = new AttachmentBuilder('./images/amogus_thumbnail.jpg');
-
-        const leaderboard_embed = {
-            color: 0xB4E599,
-            title: 'Leaderboard',
-            description: 'Leaderboard of amoguses sent in amogus uwu',
-            thumbnail: {
-                url: 'attachment://amogus_thumbnail.jpg',
-            },
-            fields: [...user_scores.entries()].map((entry, index) => {
-                return {
-                    name: user_id_to_user.get(entry[0]).name.concat(index === 0 ? ' :crown:' : ''),
-                    value: `${entry[1]}`,
-                    inline: index !== 0,
-                }
-            }),
-            image: {
-                url: 'attachment://leaderboard.png',
-            },
-            timestamp: new Date().toISOString(),
-            footer: {
-                text: 'This is still in development :(',
-                icon_url: 'attachment://amogus_thumbnail.jpg',
-            },
-        };
-
-        image_event.on('ready', async () => {
-            const leaderboard_file = new AttachmentBuilder('./images/' + streak_channel.id + '/leaderboard.png');
-            const message = await webhook.send({ embeds: [leaderboard_embed], files: [thumbnail_file, leaderboard_file] });
-            await interaction.editReply('Done!');
-            await interaction.deleteReply();
-
-            let webhook_db = new WebhookModel({
-                id: webhook.id,
-                token: webhook.token,
-                server_id: interaction.guildId,
-                leaderboard_id: message.id,
-            });
-
-            webhook_db.save();
-        });
+        webhook_db.save();
     }
 };
 

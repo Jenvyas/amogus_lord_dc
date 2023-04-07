@@ -1,4 +1,5 @@
 .env
 node_modules
 dist
-images
+images/*
+!images/amogus_thumbnail.jpg
