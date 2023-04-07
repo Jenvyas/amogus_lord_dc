@@ -1,10 +1,10 @@
 import { ChannelType, SlashCommandBuilder, TextChannel, 
     User, Message, Collection, ChatInputCommandInteraction } from 'discord.js';
 import mongoose from 'mongoose';
-import ChannelModel from '../models/channel.model';
-import MessageModel from '../models/message.model';
-import ServerModel from '../models/server.model';
-import UserModel from '../models/user.model';
+import ChannelModel from '../models/channel.model.js';
+import MessageModel from '../models/message.model.js';
+import ServerModel from '../models/server.model.js';
+import UserModel from '../models/user.model.js';
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -15,16 +15,17 @@ module.exports = {
                 .setDescription('channel to initialize the amogus data from')
                 .addChannelTypes(ChannelType.GuildText)
                 .setRequired(true))
-        .addStringOption(option=>
+        .addStringOption(option =>
             option.setName('starting_message_id')
                 .setDescription('the message id from which to start looking at amogus data')
-                .setRequired(true))
+                .setRequired(false))
         .setDMPermission(false),
 
     async execute(interaction: ChatInputCommandInteraction) {
         await interaction.deferReply({ ephemeral: true });
 
         const channel = interaction.options.getChannel('initialize_channel') as TextChannel;
+
         if(!channel.isTextBased()){
             interaction.editReply('Specified channel is not text based.');
             return;
@@ -35,7 +36,15 @@ module.exports = {
                 id: interaction.guildId,
                 name: interaction.guild.name,
             })
-            await db_server.save();
+            try {
+                await db_server.save();
+            } catch (error) {
+                //servers are stored uniquely in the db, this is so the channel can still be saved.
+                if (!(error.code === 11000)) {
+                    interaction.editReply('There was a database problem when trying to store server data.');
+                    return;
+                }
+            }
 
             const db_channel = new ChannelModel({
                 id: channel.id,
@@ -49,6 +58,11 @@ module.exports = {
                 interaction.editReply('There was a database problem when trying to store server data.');
                 return;
             }
+        }
+
+        if(!(interaction.options.getString('starting_message_id'))) {
+            interaction.editReply(`Channel has been initialized.'}`);
+            return;
         }
 
         let initial_message: Message;
