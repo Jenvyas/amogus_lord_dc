@@ -5,12 +5,13 @@ import { AttachmentBuilder, Client, Collection, Events, GatewayIntentBits, Messa
 import connectDB from './DataRetrieval/database-connect.js';
 import ChannelModel, { StoredChannel } from './models/channel.model.js';
 import WebhookModel, { StoredWebhook } from './models/webhook.model.js';
-import { isNextDayOrGreater } from './utils/streak_check.js';
+import { isNextDay, isNextDayOrGreater } from './utils/streak_check.js';
 import MessageModel from './models/message.model.js';
-import { create_leaderboard_embed, update_stored_leaderboard } from './Leaderboard/leaderboard.js';
+import { create_leaderboard_embed, update_stored_leaderboard, update_stored_streaks } from './Leaderboard/leaderboard.js';
 import { getMapOfUserInfo } from './DataRetrieval/data-filtering.js';
 import EventEmitter from 'node:events';
 import UserModel from './models/user.model.js';
+import { create_streak_embed } from './Leaderboard/leaderboard.js';
 
 dotenv.config();
 const token = process.env.TOKEN;
@@ -56,17 +57,17 @@ client.on('messageCreate', async message => {
 		return;
 	}
 
-	const user = await UserModel.findOne({id: message.author.id});
+	const user = await UserModel.findOne({ id: message.author.id });
 
 	if (!user) {
 		const db_user = new UserModel({
-			id:message.author.id,
-			name:message.author.username,
-			profile_picture_url:message.author.avatarURL() || message.author.defaultAvatarURL,
+			id: message.author.id,
+			name: message.author.username,
+			profile_picture_url: message.author.avatarURL() || message.author.defaultAvatarURL,
 		});
 		try {
 			await db_user.save();
-		} catch(error){
+		} catch (error) {
 			if (error.code === 11000) {
 				// this error code means that there already exists an entry for this userID
 				// in the database, which is fine and doesn't cause any issues.
@@ -106,16 +107,21 @@ client.on('messageCreate', async message => {
 		return;
 	}
 
+	const { max_streak, current_streak } = await update_stored_streaks(channel, message, previous_valid_message);
+
 	let user_scores = channel.leaderboard;
 
 	user_scores = await update_stored_leaderboard(user_scores, message);
 
 	const user_id_to_user = await getMapOfUserInfo([...user_scores.keys()]);
+	
 	const leaderboard_embed = await create_leaderboard_embed(user_scores, user_id_to_user, message.channelId);
+
+	const streak_embed = create_streak_embed(max_streak, current_streak, user_id_to_user);
 
 	webhooks.forEach(async stored_webhook => {
 		const webhook = await client.fetchWebhook(stored_webhook.id, stored_webhook.token);
-		webhook.editMessage(stored_webhook.leaderboard_id,{ embeds: [leaderboard_embed.embed_object], files: [leaderboard_embed.thumbnail_file, leaderboard_embed.leaderboard_chart] });
+		webhook.editMessage(stored_webhook.leaderboard_id, { embeds: [leaderboard_embed.embed_object, streak_embed.embed_object], files: [leaderboard_embed.thumbnail_file, leaderboard_embed.leaderboard_chart] });
 	});
 });
 

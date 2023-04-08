@@ -1,13 +1,24 @@
 import { StoredUser } from '../models/user.model.js';
 import { createCanvas, Canvas } from 'canvas';
-import { AttachmentBuilder, Embed, Message, Webhook } from 'discord.js';
+import { AttachmentBuilder, Embed, Message, Snowflake, Webhook } from 'discord.js';
 import fs from 'fs';
-import ChannelModel from '../models/channel.model.js';
+import ChannelModel, { StoredChannel } from '../models/channel.model.js';
+import { StoredMessage } from '../models/message.model.js';
+import { isNextDay } from '../utils/streak_check.js';
 
 export interface LeaderboardEmbed {
     embed_object: any,
     thumbnail_file: AttachmentBuilder,
     leaderboard_chart: AttachmentBuilder,
+}
+
+export interface StreakEmbed {
+    embed_object: any,
+}
+
+export interface Streaks {
+    max_streak: [string, number | Number],
+    current_streak: [string, number | Number],
 }
 
 export async function create_leaderboard_chart(user_message_count: Map<string, number>, user_id_to_user: Map<string, StoredUser>): Promise<Canvas> {
@@ -115,7 +126,7 @@ export async function create_leaderboard_embed(user_scores: Map<string, number>,
         },
         timestamp: new Date().toISOString(),
         footer: {
-            text: 'This is still in development :(',
+            text: 'Amogus corporate \@2023',
             icon_url: 'attachment://amogus_thumbnail.jpg',
         },
     };
@@ -129,10 +140,10 @@ export async function create_leaderboard_embed(user_scores: Map<string, number>,
                 resolve(new AttachmentBuilder('./images/' + channel_id + '/leaderboard.png'));
             });
         });
-        out.on('error', (err)=> { reject(err); } );
+        out.on('error', (err) => { reject(err); });
     });
 
-    return {embed_object, thumbnail_file, leaderboard_chart};
+    return { embed_object, thumbnail_file, leaderboard_chart };
 }
 
 export async function update_stored_leaderboard(user_scores: Map<string, number>, message: Message): Promise<Map<string, number>> {
@@ -149,8 +160,50 @@ export async function update_stored_leaderboard(user_scores: Map<string, number>
     return user_scores;
 }
 
-export async function update_webhook_leaderboard(webhook: Webhook, leaderboard_id: string, leaderboard_embed: LeaderboardEmbed) {
-    await webhook.editMessage(leaderboard_id, { embeds: [leaderboard_embed.embed_object], files: [leaderboard_embed.thumbnail_file, leaderboard_embed.leaderboard_chart] });
+export function create_streak_embed(max_streak: [string, number | Number], current_streak: [string, number | Number], user_id_to_user: Map<string, StoredUser>): StreakEmbed {
+    const embed_object = {
+        color: 0xB4E599,
+        title: 'Streaks',
+        fields: [
+            {
+                name: 'Longest streak :crown:',
+                value: `${user_id_to_user.get(max_streak[0]).name}: ${max_streak[1]} :fire:`,
+                inline: false
+            },
+            {
+                name: 'Current streak',
+                value: `${user_id_to_user.get(current_streak[0]).name}: ${current_streak[1]} :fire:`,
+                inline: false
+            }
+        ],
+        timestamp: new Date().toISOString(),
+        footer: {
+            text: 'Amogus corporate \@2023',
+        },
+    };
+
+    return { embed_object };
+}
+
+export async function update_stored_streaks(channel: StoredChannel, message: Message, previous_valid_message: StoredMessage): Promise<Streaks> {
+    let current_streak = channel.current_streak;
+    let max_streak = channel.max_streak;
+
+    if (previous_valid_message.author_id === message.author.id && isNextDay(new Date(message.createdTimestamp), new Date(previous_valid_message.timestamp))) {
+        current_streak[1] = (current_streak[1] as number) + 1;
+    } else {
+        current_streak = [message.author.id, 1];
+    }
+    if (current_streak[1] > max_streak[1]) {
+        max_streak = current_streak;
+    }
+
+    await ChannelModel.updateOne({ id: message.channelId }, { current_streak, max_streak });
+
+    return {
+        max_streak,
+        current_streak,
+    }
 }
 
 var stringToColour = function (str: string) {
@@ -165,6 +218,3 @@ var stringToColour = function (str: string) {
     }
     return colour;
 }
-
-
-

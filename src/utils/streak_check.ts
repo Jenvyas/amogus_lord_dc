@@ -15,3 +15,14 @@ export function isNextDayOrGreater(date1: Date, date2: Date): boolean {
     }
     return false;
 }
+
+/**
+ * Checks if the 1st date is the next day from the 2nd date
+ * @param date1 1st date
+ * @param date2 2nd date
+ * @returns true if 1st date is one date apart, false if it isn't
+ */
+export function isNextDay(date1: Date, date2: Date): boolean {
+    date2.setDate(date1.getDate()+1)
+    return date1 === date2;
+}
