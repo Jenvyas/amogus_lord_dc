@@ -67,7 +67,7 @@ export function getUserStreaks(valid_streak_messages: StoredMessage[]): [string 
 
         let message_date = new Date(message.timestamp);
 
-        if (message_date.getDate() === previous_message_tomorrow.getDate()
+        if (message_date.toDateString() === previous_message_tomorrow.toDateString()
         && user_streaks[user_streaks.length-1][0][0] === message.author_id) {
             user_streaks[user_streaks.length-1].push([message.author_id, message_date]);
         } else {
