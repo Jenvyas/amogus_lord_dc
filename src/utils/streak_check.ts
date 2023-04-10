@@ -23,6 +23,6 @@ export function isNextDayOrGreater(date1: Date, date2: Date): boolean {
  * @returns true if 1st date is one date apart, false if it isn't
  */
 export function isNextDay(date1: Date, date2: Date): boolean {
-    date2.setDate(date1.getDate()+1)
+    date2.setDate(date2.getDate()+1)
     return date1.toDateString() === date2.toDateString();
 }
