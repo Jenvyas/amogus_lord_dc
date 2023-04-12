@@ -190,7 +190,8 @@ export async function update_stored_streaks(channel: StoredChannel, message: Mes
     let max_streak = channel.max_streak;
 
     if (previous_valid_message.author_id === message.author.id && isNextDay(new Date(message.createdTimestamp), new Date(previous_valid_message.timestamp))) {
-        current_streak[1] = (current_streak[1] as number) + 1;
+        current_streak[1] = current_streak[1] + 1;
+        console.log(current_streak);
     } else {
         current_streak = [message.author.id, 1];
     }

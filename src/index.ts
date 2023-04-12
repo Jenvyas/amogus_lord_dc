@@ -149,3 +149,5 @@ client.on(Events.InteractionCreate, async interaction => {
 });
 
 client.login(token);
+
+///initialize initialize_channel:#ඞ	 starting_message_id:827620812914950175
